@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show max;
 
 import 'package:terminal_view/src/base/observable.dart';
@@ -160,6 +161,10 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   int _synchronizedUpdateStartedAt = 0;
 
+  Timer? _synchronizedUpdateTimer;
+
+  bool _disposed = false;
+
   TerminalCursorType _cursorShape = TerminalCursorType.block;
 
   /* State getters */
@@ -250,6 +255,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
       return;
     }
 
+    _cancelSynchronizedUpdateTimer();
     _synchronizedUpdate = false;
     notifyListeners();
   }
@@ -261,6 +267,28 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     final elapsed =
         DateTime.now().millisecondsSinceEpoch - _synchronizedUpdateStartedAt;
     return elapsed > _kSynchronizedUpdateTimeoutMs;
+  }
+
+  /// Flushes held output when a program enables synchronized output but dies or
+  /// goes quiet without turning it off.
+  void _onSynchronizedUpdateTimeout() {
+    _cancelSynchronizedUpdateTimer();
+    _synchronizedUpdate = false;
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  void _cancelSynchronizedUpdateTimer() {
+    _synchronizedUpdateTimer?.cancel();
+    _synchronizedUpdateTimer = null;
+  }
+
+  /// Releases resources held by the terminal so scheduled timers do not fire
+  /// after teardown.
+  void dispose() {
+    _disposed = true;
+    _cancelSynchronizedUpdateTimer();
   }
 
   /// Sends a key event to the underlying program.
@@ -537,6 +565,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     _savedOriginMode = false;
     _savedAutoWrapMode = true;
     _cursorShape = TerminalCursorType.block;
+    _cancelSynchronizedUpdateTimer();
     _synchronizedUpdate = false;
     _mainBuffer.softReset();
     _altBuffer.softReset();
@@ -942,8 +971,17 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void setSynchronizedUpdateMode(bool enabled) {
-    if (enabled && !_synchronizedUpdate) {
-      _synchronizedUpdateStartedAt = DateTime.now().millisecondsSinceEpoch;
+    if (enabled) {
+      _cancelSynchronizedUpdateTimer();
+      if (!_disposed) {
+        _synchronizedUpdateStartedAt = DateTime.now().millisecondsSinceEpoch;
+        _synchronizedUpdateTimer = Timer(
+          const Duration(milliseconds: _kSynchronizedUpdateTimeoutMs),
+          _onSynchronizedUpdateTimeout,
+        );
+      }
+    } else {
+      _cancelSynchronizedUpdateTimer();
     }
     _synchronizedUpdate = enabled;
   }

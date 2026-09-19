@@ -1,3 +1,9 @@
+## [0.2.1] - 2026-09-19
+
+* Flush output held by synchronized update mode (DEC 2026) when nothing turns it off.
+* Add `Terminal.dispose()`.
+* Fix a cell reset keeping its old glyph.
+
 ## [0.2.0] - 2026-09-02
 
 * Stop drawing underlined text (SGR 4). The attribute is still parsed and tracked; it is no longer painted, since an underline on a one-line-tall grid row collides with the descenders above it and with the cursor and selection below.
