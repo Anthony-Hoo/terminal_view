@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -300,9 +301,14 @@ class TerminalViewState extends State<TerminalView> {
         onComposing: _onComposing,
         onAction: (action) {
           _scrollToBottom();
-          // Android sends TextInputAction.newline when the user presses the virtual keyboard's enter key.
+          // Android sends TextInputAction.newline when the user presses the
+          // virtual keyboard's enter key. iOS fires performAction(newline)
+          // AND inserts "\n" through updateEditingValue (action first, then
+          // the insertion), so on iOS the insertion path is the single
+          // source of Enter; honouring the action there would send it twice.
           if (action == TextInputAction.done ||
-              action == TextInputAction.newline) {
+              (action == TextInputAction.newline &&
+                  defaultTargetPlatform != TargetPlatform.iOS)) {
             widget.terminal.keyInput(TerminalKey.enter);
           }
         },
@@ -421,6 +427,15 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   void _onInsert(String text) {
+    // iOS delivers the virtual keyboard's Return as a "\n" text insertion
+    // (on top of performAction). Normalize it to the Enter key so the
+    // terminal gets CR semantics and a single event per keypress.
+    if (text == '\n' || text == '\r') {
+      widget.terminal.keyInput(TerminalKey.enter);
+      _scrollToBottom();
+      return;
+    }
+
     final key = charToTerminalKey(text.trim());
 
     // On mobile platforms there is no guarantee that virtual keyboard will
