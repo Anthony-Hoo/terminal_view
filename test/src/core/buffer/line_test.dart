@@ -171,4 +171,14 @@ void main() {
       expect(anchor.attached, false);
     });
   });
+
+  group('BufferLine.createCellData', () {
+    test('increments version and initializes cell data', () {
+      final line = BufferLine(10);
+      final initialVersion = line.version;
+      final cellData = line.createCellData(2);
+      expect(line.version, greaterThan(initialVersion));
+      expect(cellData.content, 0);
+    });
+  });
 }
