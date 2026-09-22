@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:terminal_view/src/terminal.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/ui/controller.dart';
 import 'package:terminal_view/src/ui/selection_mode.dart';
 
@@ -12,7 +12,7 @@ class TerminalActions extends StatelessWidget {
     required this.child,
   });
 
-  final Terminal terminal;
+  final TerminalSurface terminal;
 
   final TerminalController controller;
 

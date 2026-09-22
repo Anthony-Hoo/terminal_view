@@ -4,7 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/input/keys.dart';
-import 'package:terminal_view/src/terminal.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/ui/controller.dart';
 import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/ui/custom_text_edit.dart';
@@ -53,7 +53,7 @@ class TerminalView extends StatefulWidget {
   });
 
   /// The underlying terminal that this widget renders.
-  final Terminal terminal;
+  final TerminalSurface terminal;
 
   final TerminalController? controller;
 
@@ -518,7 +518,7 @@ class _TerminalView extends LeafRenderObjectWidget {
     this.composingText,
   });
 
-  final Terminal terminal;
+  final TerminalSurface terminal;
 
   final TerminalController controller;
 

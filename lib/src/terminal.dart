@@ -11,6 +11,7 @@ import 'package:terminal_view/src/core/escape/parser.dart';
 import 'package:terminal_view/src/core/input/handler.dart';
 import 'package:terminal_view/src/core/input/keys.dart';
 import 'package:terminal_view/src/core/mouse/button.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/core/mouse/button_state.dart';
 import 'package:terminal_view/src/core/mouse/handler.dart';
 import 'package:terminal_view/src/core/mouse/mode.dart';
@@ -28,7 +29,8 @@ const _kSynchronizedUpdateTimeoutMs = 150;
 /// [buffer] and events such as [onTitleChange] or [onBell], as well as
 /// translating user input into escape sequences that the application can
 /// understand.
-class Terminal with Observable implements TerminalState, EscapeHandler {
+class Terminal with Observable
+    implements TerminalState, EscapeHandler, TerminalSurface {
   /// The number of lines that the scrollback buffer can hold. If the buffer
   /// exceeds this size, the lines at the top of the buffer will be removed.
   final int maxLines;
@@ -224,12 +226,14 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// Current active buffer of the terminal. This is initially [mainBuffer] and
   /// can be switched back and forth from [altBuffer] to [mainBuffer] when
   /// the underlying program requests it.
+  @override
   Buffer get buffer => _buffer;
 
   Buffer get mainBuffer => _mainBuffer;
 
   Buffer get altBuffer => _altBuffer;
 
+  @override
   bool get isUsingAltBuffer => _buffer == _altBuffer;
 
   /// Lines of the active buffer.
@@ -269,6 +273,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// - [charInput]
   /// - [textInput]
   /// - [paste]
+  @override
   bool keyInput(
     TerminalKey key, {
     bool shift = false,
@@ -341,6 +346,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// - [keyInput]
   /// - [charInput]
   /// - [paste]
+  @override
   void textInput(String text) {
     onOutput?.call(text);
   }
@@ -352,6 +358,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   ///
   /// See also:
   /// - [textInput]
+  @override
   void paste(String text) {
     if (_bracketedPasteMode) {
       onOutput?.call(_emitter.bracketedPaste(text));
@@ -360,6 +367,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     }
   }
 
+  @override
   bool mouseInput(
     TerminalMouseButton button,
     TerminalMouseButtonState buttonState,

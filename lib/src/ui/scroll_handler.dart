@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:terminal_view/core.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/ui/infinite_scroll_view.dart';
 
 /// Handles scrolling gestures in the alternate screen buffer. In alternate
@@ -17,7 +18,7 @@ class TerminalScrollGestureHandler extends StatefulWidget {
     required this.child,
   });
 
-  final Terminal terminal;
+  final TerminalSurface terminal;
 
   /// Returns the cell offset for the pixel offset.
   final CellOffset Function(Offset) getCellOffset;
@@ -151,7 +152,7 @@ class _TerminalScrollGestureHandlerState
 /// This is the case in the alternate screen buffer, which has no scrollback,
 /// and whenever the application turned on mouse reporting - a full screen UI
 /// expects wheel events even if it never switched buffers.
-bool terminalOwnsScroll(Terminal terminal, bool forceAppScrollMode) {
+bool terminalOwnsScroll(TerminalSurface terminal, bool forceAppScrollMode) {
   return forceAppScrollMode ||
       terminal.isUsingAltBuffer ||
       terminal.mouseMode != MouseMode.none;

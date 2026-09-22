@@ -8,6 +8,7 @@ import 'package:terminal_view/src/core/charset.dart';
 import 'package:terminal_view/src/core/cursor.dart';
 import 'package:terminal_view/src/core/reflow.dart';
 import 'package:terminal_view/src/core/state.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/utils/circular_buffer.dart';
 import 'package:terminal_view/src/utils/unicode_v16.dart';
 
@@ -21,7 +22,7 @@ const _skinToneFirst = 0x1F3FB;
 
 const _skinToneLast = 0x1F3FF;
 
-class Buffer {
+class Buffer implements TerminalBufferSurface {
   final TerminalState terminal;
 
   final int maxLines;
@@ -81,10 +82,15 @@ class Buffer {
 
   /// Total number of lines in the buffer. Always equal or greater than
   /// [viewHeight].
+  @override
   int get height => lines.length;
+
+  @override
+  BufferLine lineAt(int index) => lines[index];
 
   /// Horizontal position of the cursor relative to the top-left cornor of the
   /// screen, starting from 0.
+  @override
   int get cursorX => _cursorX.clamp(0, terminal.viewWidth - 1);
 
   /// Vertical position of the cursor relative to the top-left cornor of the
@@ -102,6 +108,7 @@ class Buffer {
 
   /// Vertical position of the cursor relative to the top of the buffer,
   /// starting from 0.
+  @override
   int get absoluteCursorY => _cursorY + scrollBack;
 
   /// Absolute index of the first line in the scroll region.
@@ -643,11 +650,13 @@ class Buffer {
   }
 
   /// Create a new [CellAnchor] at the specified [x] and [y] coordinates.
+  @override
   CellAnchor createAnchor(int x, int y) {
     return lines[y].createAnchor(x);
   }
 
   /// Create a new [CellAnchor] at the specified [x] and [y] coordinates.
+  @override
   CellAnchor createAnchorFromOffset(CellOffset offset) {
     return lines[offset.y].createAnchor(offset.x);
   }
@@ -677,6 +686,7 @@ class Buffer {
     r'\'.codeUnitAt(0),
   };
 
+  @override
   BufferRangeLine? getWordBoundary(CellOffset position) {
     var separators = wordSeparators ?? defaultWordSeparators;
     if (position.y >= lines.length) {
@@ -721,6 +731,7 @@ class Buffer {
 
   /// Get the plain text content of the buffer including the scrollback.
   /// Accepts an optional [range] to get a specific part of the buffer.
+  @override
   String getText([BufferRange? range]) {
     range ??= BufferRangeLine(
       CellOffset(0, 0),

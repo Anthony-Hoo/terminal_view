@@ -11,10 +11,10 @@ import 'package:terminal_view/src/core/buffer/range_line.dart';
 import 'package:terminal_view/src/core/buffer/segment.dart';
 import 'package:terminal_view/src/core/mouse/button.dart';
 import 'package:terminal_view/src/core/mouse/button_state.dart';
-import 'package:terminal_view/src/terminal.dart';
 import 'package:terminal_view/src/ui/controller.dart';
 import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/ui/painter.dart';
+import 'package:terminal_view/src/terminal_surface.dart';
 import 'package:terminal_view/src/ui/selection_mode.dart';
 import 'package:terminal_view/src/ui/terminal_size.dart';
 import 'package:terminal_view/src/ui/terminal_text_style.dart';
@@ -24,7 +24,7 @@ typedef EditableRectCallback = void Function(Rect rect, Rect caretRect);
 
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   RenderTerminal({
-    required Terminal terminal,
+    required TerminalSurface terminal,
     required TerminalController controller,
     required ViewportOffset offset,
     required EdgeInsets padding,
@@ -55,8 +55,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
           textScaler: textScaler,
         );
 
-  Terminal _terminal;
-  set terminal(Terminal terminal) {
+  TerminalSurface _terminal;
+  set terminal(TerminalSurface terminal) {
     if (_terminal == terminal) return;
     if (attached) _terminal.removeListener(_onTerminalChange);
     _terminal = terminal;
@@ -223,7 +223,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   void _onTerminalChange() {
     // Only a changed line count moves the scroll extent, and this runs on every
     // chunk of output, so a repaint beats a relayout for the common case.
-    final lineCount = _terminal.buffer.lines.length;
+    final lineCount = _terminal.buffer.height;
     if (lineCount != _lastLineCount) {
       _lastLineCount = lineCount;
       markNeedsLayout();
@@ -300,7 +300,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   /// Total height of the terminal in pixels. Includes scrollback buffer.
   double get _terminalHeight =>
-      _terminal.buffer.lines.length * _painter.cellSize.height;
+      _terminal.buffer.height * _painter.cellSize.height;
 
   /// The distance from the top of the terminal to the top of the viewport.
   double get _scrollOffset => _offset.pixels;
@@ -326,7 +326,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     final col = x ~/ _painter.cellSize.width;
     return CellOffset(
       col.clamp(0, _terminal.viewWidth - 1),
-      row.clamp(0, _terminal.buffer.lines.length - 1),
+      row.clamp(0, _terminal.buffer.height - 1),
     );
   }
 
@@ -469,7 +469,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _painter.cellSize.width.round(),
         _painter.cellSize.height.round(),
       );
-      _lastLineCount = _terminal.buffer.lines.length;
+      _lastLineCount = _terminal.buffer.height;
     }
   }
 
@@ -534,7 +534,6 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   void _paint(PaintingContext context, Offset offset) {
     final canvas = context.canvas;
 
-    final lines = _terminal.buffer.lines;
     final charHeight = _painter.cellSize.height;
 
     final firstLineOffset = _scrollOffset - _padding.top;
@@ -543,8 +542,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     final firstLine = firstLineOffset ~/ charHeight;
     final lastLine = lastLineOffset ~/ charHeight;
 
-    final effectFirstLine = firstLine.clamp(0, lines.length - 1);
-    final effectLastLine = lastLine.clamp(0, lines.length - 1);
+    final effectFirstLine = firstLine.clamp(0, _terminal.buffer.height - 1);
+    final effectLastLine = lastLine.clamp(0, _terminal.buffer.height - 1);
 
     _painter.blinkVisible = _blinkVisible;
 
@@ -552,7 +551,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _painter.paintLine(
         canvas,
         offset.translate(0, _rowY(i)),
-        lines[i],
+        _terminal.buffer.lineAt(i),
       );
     }
 
@@ -635,7 +634,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     int lastLine,
   ) {
     for (final segment in selection.toSegments()) {
-      if (segment.line >= _terminal.buffer.lines.length) {
+      if (segment.line >= _terminal.buffer.height) {
         break;
       }
 
@@ -703,7 +702,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
     if (textColor == null) return;
 
-    final line = _terminal.buffer.lines[segment.line];
+    final line = _terminal.buffer.lineAt(segment.line);
     final cellWidth = _painter.cellSize.width;
     final clampedEnd = end.clamp(0, line.length);
     final cellData = CellData.empty();
@@ -724,7 +723,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     if (accent == null || _cursorType != TerminalCursorType.block) return;
 
     final buffer = _terminal.buffer;
-    final line = buffer.lines[buffer.absoluteCursorY];
+    final line = buffer.lineAt(buffer.absoluteCursorY);
     final cellData = CellData.empty();
     line.getCellData(buffer.cursorX, cellData);
 
