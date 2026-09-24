@@ -21,6 +21,17 @@ class TerminalController with ChangeNotifier {
   CellAnchor? _selectionBase;
   CellAnchor? _selectionExtent;
 
+  /// 纯坐标选区（M2a 起用）。选区权威在上层（我们的引擎），fork 只拿坐标画。
+  /// 和 [_selectionBase]/[_selectionExtent] 二选一：有外部坐标就用它，
+  /// 否则退回锚点（fork 单独用时没有引擎）。
+  CellOffset? _externalBegin;
+  CellOffset? _externalEnd;
+
+  /// 选区变化时上报「意图」（begin/end；清除时两者为 null）。上层把它转给
+  /// 自己的选区权威，再把规范化后的结果喂回 [setExternalSelection]。
+  /// 没装这个回调 = 单独使用 fork，走原来的锚点路径。
+  void Function(CellOffset? begin, CellOffset? end)? onSelectionIntent;
+
   SelectionMode get selectionMode => _selectionMode;
   SelectionMode _selectionMode;
 
@@ -36,6 +47,12 @@ class TerminalController with ChangeNotifier {
   final _highlights = <TerminalHighlight>[];
 
   BufferRange? get selection {
+    final externalBegin = _externalBegin;
+    final externalEnd = _externalEnd;
+    if (externalBegin != null && externalEnd != null) {
+      return _createRange(externalBegin, externalEnd);
+    }
+
     final base = _selectionBase;
     final extent = _selectionExtent;
 
@@ -50,6 +67,37 @@ class TerminalController with ChangeNotifier {
     return _createRange(base.offset, extent.offset);
   }
 
+  /// 喂入纯坐标选区（上层选区权威的回显）。端点角色（begin/end）原样保留：
+  /// 拖耳朵越过对端时，靠这个角色不排序才不会乱。两者都 null = 清除。
+  void setExternalSelection(CellOffset? begin, CellOffset? end) {
+    final unchanged = _externalBegin == begin &&
+        _externalEnd == end &&
+        !_anchorsPresent;
+    if (unchanged) {
+      return;
+    }
+    _disposeAnchors();
+    _externalBegin = begin;
+    _externalEnd = end;
+    notifyListeners();
+  }
+
+  /// 乐观更新纯坐标选区 + 上报意图：上层据此去问它自己的选区权威。
+  /// 装上 [onSelectionIntent] 后，fork 的选词/拖选/清除都走这里。
+  void requestSelection(CellOffset? begin, CellOffset? end) {
+    setExternalSelection(begin, end);
+    onSelectionIntent?.call(begin, end);
+  }
+
+  bool get _anchorsPresent => _selectionBase != null || _selectionExtent != null;
+
+  void _disposeAnchors() {
+    _selectionBase?.dispose();
+    _selectionBase = null;
+    _selectionExtent?.dispose();
+    _selectionExtent = null;
+  }
+
   /// Set selection on the terminal from [base] to [extent]. This method takes
   /// the ownership of [base] and [extent] and will dispose them when the
   /// selection is cleared or changed.
@@ -59,6 +107,9 @@ class TerminalController with ChangeNotifier {
 
     _selectionExtent?.dispose();
     _selectionExtent = extent;
+
+    _externalBegin = null;
+    _externalEnd = null;
 
     if (mode != null) {
       _selectionMode = mode;
@@ -90,13 +141,17 @@ class TerminalController with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clears the current selection.
+  /// Clears the current selection. 有意图回调时同时上报清除（上层要通知
+  /// 它的选区权威，否则引擎那边的高亮不会被清掉）。
   void clearSelection() {
-    _selectionBase?.dispose();
-    _selectionBase = null;
-    _selectionExtent?.dispose();
-    _selectionExtent = null;
+    final had = selection != null;
+    _disposeAnchors();
+    _externalBegin = null;
+    _externalEnd = null;
     notifyListeners();
+    if (had) {
+      onSelectionIntent?.call(null, null);
+    }
   }
 
   // Select which type of pointer events are send to the terminal.

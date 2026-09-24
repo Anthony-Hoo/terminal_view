@@ -15,6 +15,7 @@ import 'package:terminal_view/src/ui/keyboard_listener.dart';
 import 'package:terminal_view/src/ui/keyboard_visibility.dart';
 import 'package:terminal_view/src/ui/render.dart';
 import 'package:terminal_view/src/ui/scroll_handler.dart';
+import 'package:terminal_view/src/ui/selection_handles.dart';
 import 'package:terminal_view/src/ui/shortcut/actions.dart';
 import 'package:terminal_view/src/ui/shortcut/shortcuts.dart';
 import 'package:terminal_view/src/ui/terminal_text_style.dart';
@@ -359,14 +360,29 @@ class TerminalViewState extends State<TerminalView> {
     );
 
     child = Container(
-      color:
-          widget.theme.background.withValues(alpha: widget.backgroundOpacity),
+      color: widget.theme.background.withValues(alpha: widget.backgroundOpacity),
       padding: widget.padding,
       child: child,
     );
 
-    return child;
+    // 选区手柄是覆盖在上层的独立手势，不和终端自己的长按/拖动手势抢。
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(child: child),
+        Positioned.fill(
+          child: TerminalSelectionHandles(
+            controller: _controller,
+            terminal: widget.terminal,
+            renderTerminal: () => _maybeRenderTerminal,
+          ),
+        ),
+      ],
+    );
   }
+
+  RenderTerminal? get _maybeRenderTerminal =>
+      _viewportKey.currentContext?.findRenderObject() as RenderTerminal?;
 
   void requestKeyboard() {
     _customTextEditKey.currentState?.requestKeyboard();
@@ -392,7 +408,9 @@ class TerminalViewState extends State<TerminalView> {
 
   bool _clearedSelectionOnTapDown = false;
 
-  void _onTapDown(_) {
+  void _onTapDown(TapDownDetails details) {
+    // 手柄现在是上层的覆盖手势，点不到这里来（见 TerminalSelectionHandles），
+    // 所以这里直接清选区即可；清完由 controller 上报给上层选区权威。
     _clearedSelectionOnTapDown = _controller.selection != null;
     if (_clearedSelectionOnTapDown) {
       _controller.clearSelection();

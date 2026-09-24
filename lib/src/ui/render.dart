@@ -352,10 +352,14 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   /// Selects entire words in the terminal that contains [from] and [to].
+  ///
+  /// 装了 `controller.onSelectionIntent`（上层选区权威）时，只上报意图；
+  /// 否则退回原来的锚点选区（fork 单独用）。
   void selectWord(Offset from, [Offset? to]) {
     final fromOffset = getCellOffset(from);
     final fromBoundary = _wordOrCellAt(fromOffset);
     if (to == null) {
+      if (_reportSelection(fromBoundary.begin, fromBoundary.end)) return;
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(fromBoundary.begin),
         _terminal.buffer.createAnchorFromOffset(fromBoundary.end),
@@ -365,6 +369,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       final toOffset = getCellOffset(to);
       final toBoundary = _wordOrCellAt(toOffset);
       final range = fromBoundary.merge(toBoundary);
+      if (_reportSelection(range.begin, range.end)) return;
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(range.begin),
         _terminal.buffer.createAnchorFromOffset(range.end),
@@ -378,6 +383,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   void selectCharacters(Offset from, [Offset? to]) {
     final fromPosition = getCellOffset(from);
     if (to == null) {
+      if (_reportSelection(fromPosition, fromPosition)) return;
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(fromPosition),
         _terminal.buffer.createAnchorFromOffset(fromPosition),
@@ -394,11 +400,28 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       if (!backwards) {
         toPosition = CellOffset(toPosition.x + 1, toPosition.y);
       }
+      if (_reportSelection(basePosition, toPosition)) return;
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(basePosition),
         _terminal.buffer.createAnchorFromOffset(toPosition),
       );
     }
+  }
+
+  /// 上报选区意图（上层选区权威存在时）；返回是否已上报。
+  bool _reportSelection(CellOffset begin, CellOffset end) {
+    if (_controller.onSelectionIntent == null) return false;
+    _controller.requestSelection(begin, end);
+    return true;
+  }
+
+  /// 手柄拖动用：给出「含头含尾」的选区（[first] 是第一个选中格、[last] 是
+  /// 最后一个），把它规范成引擎要的「末端排他」端点再上报。越过对端时
+  /// 谁左谁右由引擎 `ordered()` 规范化，这里不用管。
+  void selectInclusiveRange(CellOffset first, CellOffset last) {
+    final begin = first.isAfter(last) ? CellOffset(first.x + 1, first.y) : first;
+    final end = first.isAfter(last) ? last : CellOffset(last.x + 1, last.y);
+    _controller.requestSelection(begin, end);
   }
 
   /// Send a mouse event at [offset] with [button] being currently in [buttonState].

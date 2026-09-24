@@ -94,4 +94,56 @@ void main() {
       assert(controller.highlights.isEmpty);
     });
   });
+
+  group('TerminalController external selection', () {
+    test('setExternalSelection drives selection without anchors', () {
+      final controller = TerminalController();
+
+      controller.setExternalSelection(
+        const CellOffset(1, 0),
+        const CellOffset(4, 2),
+      );
+
+      final selection = controller.selection;
+      expect(selection, isNotNull);
+      expect(selection, isA<BufferRangeLine>());
+      expect(selection!.begin, const CellOffset(1, 0));
+      expect(selection.end, const CellOffset(4, 2));
+
+      controller.setExternalSelection(null, null);
+      expect(controller.selection, isNull);
+    });
+
+    test('requestSelection reports the intent and updates optimistically', () {
+      final controller = TerminalController();
+      final reported = <(CellOffset?, CellOffset?)>[];
+      controller.onSelectionIntent =
+          (begin, end) => reported.add((begin, end));
+
+      controller.requestSelection(
+        const CellOffset(1, 1),
+        const CellOffset(3, 1),
+      );
+
+      expect(reported, [(const CellOffset(1, 1), const CellOffset(3, 1))]);
+      expect(controller.selection!.begin, const CellOffset(1, 1));
+    });
+
+    test('clearSelection reports a clear intent', () {
+      final controller = TerminalController();
+      controller.setExternalSelection(
+        const CellOffset(1, 0),
+        const CellOffset(4, 2),
+      );
+
+      final reported = <(CellOffset?, CellOffset?)>[];
+      controller.onSelectionIntent =
+          (begin, end) => reported.add((begin, end));
+
+      controller.clearSelection();
+
+      expect(controller.selection, isNull);
+      expect(reported, [(null, null)]);
+    });
+  });
 }
