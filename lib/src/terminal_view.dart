@@ -11,6 +11,7 @@ import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/ui/custom_text_edit.dart';
 import 'package:terminal_view/src/ui/gesture/gesture_handler.dart';
 import 'package:terminal_view/src/ui/input_map.dart';
+import 'package:terminal_view/src/ui/key_order.dart';
 import 'package:terminal_view/src/ui/keyboard_listener.dart';
 import 'package:terminal_view/src/ui/keyboard_visibility.dart';
 import 'package:terminal_view/src/ui/render.dart';
@@ -163,6 +164,8 @@ class TerminalViewState extends State<TerminalView> {
 
   final _customTextEditKey = GlobalKey<CustomTextEditState>();
 
+  final _keyOrder = HardwareKeyOrder();
+
   final _scrollableKey = GlobalKey<ScrollableState>();
 
   final _viewportKey = GlobalKey();
@@ -244,6 +247,7 @@ class TerminalViewState extends State<TerminalView> {
       _scrollController.dispose();
     }
     _shortcutManager.dispose();
+    _keyOrder.dispose();
     super.dispose();
   }
 
@@ -300,6 +304,9 @@ class TerminalViewState extends State<TerminalView> {
           widget.terminal.keyInput(TerminalKey.backspace);
         },
         onComposing: _onComposing,
+        // Hardware keys held back behind typed text may go once the platform
+        // has answered it (see HardwareKeyOrder).
+        onTextInputUpdate: _keyOrder.textInputUpdated,
         onAction: (action) {
           _scrollToBottom();
           // Android sends TextInputAction.newline when the user presses the
@@ -492,17 +499,39 @@ class TerminalViewState extends State<TerminalView> {
       return KeyEventResult.ignored;
     }
 
+    final keyboard = HardwareKeyboard.instance;
+    final ctrl = keyboard.isControlPressed;
+    final alt = keyboard.isAltPressed;
+    final shift = keyboard.isShiftPressed;
+
+    // Plain text keys go through the platform's text input, so IMEs can
+    // compose with them and the character keeps its case and layout. The
+    // text arrives asynchronously; see [HardwareKeyOrder].
+    if (!ctrl && !alt && !keyboard.isMetaPressed && _isPrintable(event.character)) {
+      _keyOrder.textKeyDispatched();
+      return KeyEventResult.ignored;
+    }
+
     final key = keyToTerminalKey(event.logicalKey);
 
     if (key == null) {
       return KeyEventResult.ignored;
     }
 
+    // A key typed right after some text must not overtake it.
+    if (_keyOrder.isBusy) {
+      _keyOrder.run(() {
+        widget.terminal.keyInput(key, ctrl: ctrl, alt: alt, shift: shift);
+        _scrollToBottom();
+      });
+      return KeyEventResult.handled;
+    }
+
     final handled = widget.terminal.keyInput(
       key,
-      ctrl: HardwareKeyboard.instance.isControlPressed,
-      alt: HardwareKeyboard.instance.isAltPressed,
-      shift: HardwareKeyboard.instance.isShiftPressed,
+      ctrl: ctrl,
+      alt: alt,
+      shift: shift,
     );
 
     if (handled) {
@@ -510,6 +539,12 @@ class TerminalViewState extends State<TerminalView> {
     }
 
     return handled ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
+  static bool _isPrintable(String? character) {
+    if (character == null || character.isEmpty) return false;
+    final rune = character.runes.first;
+    return rune >= 0x20 && rune != 0x7f;
   }
 
   void _onKeyboardShow() {

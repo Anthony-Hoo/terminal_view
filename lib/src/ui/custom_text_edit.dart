@@ -14,6 +14,7 @@ class CustomTextEdit extends StatefulWidget {
     required this.onAction,
     required this.onKeyEvent,
     required this.focusNode,
+    this.onTextInputUpdate,
     this.autofocus = false,
     this.readOnly = false,
     // this.initEditingState = TextEditingValue.empty,
@@ -34,6 +35,9 @@ class CustomTextEdit extends StatefulWidget {
   final void Function(TextInputAction) onAction;
 
   final KeyEventResult Function(FocusNode, KeyEvent) onKeyEvent;
+
+  /// Called after each editing update from the platform has been delivered.
+  final VoidCallback? onTextInputUpdate;
 
   final FocusNode focusNode;
 
@@ -225,6 +229,7 @@ class CustomTextEditState extends State<CustomTextEdit>
     for (final delta in textEditingDeltas) {
       last = _deltas.applyDelta(delta);
       _deliver(last);
+      widget.onTextInputUpdate?.call();
     }
     if (last != null) _afterUpdate(last);
   }
@@ -234,6 +239,7 @@ class CustomTextEditState extends State<CustomTextEdit>
   void updateEditingValue(TextEditingValue value) {
     final update = _deltas.applyValue(_currentEditingState, value);
     _deliver(update);
+    widget.onTextInputUpdate?.call();
     _afterUpdate(update);
   }
 
