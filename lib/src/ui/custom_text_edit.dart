@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'text_input_delta.dart';
+
 class CustomTextEdit extends StatefulWidget {
   CustomTextEdit({
     super.key,
@@ -51,8 +53,12 @@ class CustomTextEdit extends StatefulWidget {
   CustomTextEditState createState() => CustomTextEditState();
 }
 
-class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
+class CustomTextEditState extends State<CustomTextEdit>
+    with TextInputClient
+    implements DeltaTextInputClient {
   TextInputConnection? _connection;
+
+  final _deltas = TextInputDeltaInterpreter();
 
   @override
   void initState() {
@@ -113,6 +119,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
   void setEditingState(TextEditingValue value) {
     _currentEditingState = value;
+    if (value.composing.isCollapsed) _deltas.reset();
     _connection?.setEditingState(value);
   }
 
@@ -166,13 +173,20 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
         autocorrect: false,
         enableSuggestions: false,
         enableIMEPersonalizedLearning: false,
+        // A terminal needs the characters that were typed: smart quotes and
+        // dashes would turn " into a curly quote and -- into an en dash.
+        smartDashesType: SmartDashesType.disabled,
+        smartQuotesType: SmartQuotesType.disabled,
+        // Deltas carry the platform's own base text, so edits stay correct
+        // even when the next keystroke arrives before our reset lands.
+        enableDeltaModel: true,
       );
 
       _connection = TextInput.attach(this, config);
 
       _connection!.show();
 
-      _connection!.setEditingState(_initEditingState);
+      _resetEditingState();
     }
   }
 
@@ -206,34 +220,49 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   }
 
   @override
+  void updateEditingValueWithDeltas(List<TextEditingDelta> textEditingDeltas) {
+    TextInputUpdate? last;
+    for (final delta in textEditingDeltas) {
+      last = _deltas.applyDelta(delta);
+      _deliver(last);
+    }
+    if (last != null) _afterUpdate(last);
+  }
+
+  /// Fallback for platforms that deliver whole values instead of deltas.
+  @override
   void updateEditingValue(TextEditingValue value) {
-    _currentEditingState = value;
+    final update = _deltas.applyValue(_currentEditingState, value);
+    _deliver(update);
+    _afterUpdate(update);
+  }
 
-    // Get input after composing is done
-    if (!_currentEditingState.composing.isCollapsed) {
-      final text = _currentEditingState.text;
-      final composingText = _currentEditingState.composing.textInside(text);
-      widget.onComposing(composingText);
-      return;
-    }
-
-    widget.onComposing(null);
-
-    if (_currentEditingState.text.length < _initEditingState.text.length) {
+  void _deliver(TextInputUpdate update) {
+    _currentEditingState = update.value;
+    final edit = update.edit;
+    for (var i = 0; i < edit.backspaces; i++) {
       widget.onDelete();
-    } else {
-      final textDelta = _currentEditingState.text.substring(
-        _initEditingState.text.length,
-      );
-
-      widget.onInsert(textDelta);
     }
+    if (edit.text.isNotEmpty) {
+      widget.onInsert(edit.text);
+    }
+  }
 
-    // Reset editing state if composing is done
-    if (_currentEditingState.composing.isCollapsed &&
+  void _afterUpdate(TextInputUpdate update) {
+    widget.onComposing(update.composingText);
+
+    // Once nothing is composing, go back to the initial state so the next
+    // keystroke (including a backspace, see deleteDetection) starts clean.
+    if (update.composingText == null &&
         _currentEditingState.text != _initEditingState.text) {
-      _connection!.setEditingState(_initEditingState);
+      _resetEditingState();
     }
+  }
+
+  void _resetEditingState() {
+    _currentEditingState = _initEditingState;
+    _deltas.reset();
+    _connection?.setEditingState(_initEditingState);
   }
 
   @override
