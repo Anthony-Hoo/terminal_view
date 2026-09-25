@@ -229,7 +229,7 @@ class CustomTextEditState extends State<CustomTextEdit>
     for (final delta in textEditingDeltas) {
       last = _deltas.applyDelta(delta);
       _deliver(last);
-      widget.onTextInputUpdate?.call();
+      if (last.answersKey) widget.onTextInputUpdate?.call();
     }
     if (last != null) _afterUpdate(last);
   }
@@ -275,6 +275,7 @@ class CustomTextEditState extends State<CustomTextEdit>
   void performAction(TextInputAction action) {
     widget.onAction(action);
   }
+
 
   @override
   void updateFloatingCursor(RawFloatingCursorPoint point) {}

@@ -134,6 +134,44 @@ void main() {
     });
   });
 
+  group("iOS '.' shortcut", () {
+    // Captured from the iOS 27 simulator: "a" then two spaces, typed faster
+    // than the field reset lands.
+    test('the separate replacement form types exactly the spaces that were pressed', () {
+      final edits = [
+        insert(_init, 'a'),
+        insert('  a', ' '),
+        const TextEditingDeltaReplacement(
+          oldText: '  a ',
+          replacementText: '.',
+          replacedRange: TextRange(start: 3, end: 4),
+          selection: TextSelection.collapsed(offset: 4),
+          composing: TextRange.empty,
+        ),
+        insert('  a.', ' '),
+      ].map(interpreter.applyDelta).toList();
+
+      expect(edits.map((u) => u.edit.text).join(), 'a  ');
+      expect(edits.every((u) => u.edit.backspaces == 0), isTrue);
+      // The replacement is not an answer to a key press.
+      expect(edits.map((u) => u.answersKey), [true, true, false, true]);
+    });
+
+    test('the one-step form types a single space', () {
+      final update = interpreter.applyDelta(
+        const TextEditingDeltaReplacement(
+          oldText: '  a ',
+          replacementText: '. ',
+          replacedRange: TextRange(start: 3, end: 4),
+          selection: TextSelection.collapsed(offset: 5),
+          composing: TextRange.empty,
+        ),
+      );
+      expect(update.edit, const TerminalTextEdit(text: ' '));
+      expect(update.answersKey, isTrue);
+    });
+  });
+
   test('replacing already-sent text erases it and types the replacement', () {
     final delta = TextEditingDeltaReplacement(
       oldText: '  ab',

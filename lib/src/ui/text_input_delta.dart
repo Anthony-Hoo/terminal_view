@@ -33,6 +33,7 @@ class TextInputUpdate {
     required this.edit,
     required this.value,
     required this.composingText,
+    this.answersKey = true,
   });
 
   /// What to send to the terminal.
@@ -43,6 +44,10 @@ class TextInputUpdate {
 
   /// Text still being composed by the IME (preedit), or null. Never sent.
   final String? composingText;
+
+  /// Whether this update is the platform's answer to a key press. False for
+  /// the extra update of iOS's "." shortcut (see [TextInputDeltaInterpreter]).
+  final bool answersKey;
 }
 
 /// Turns platform text editing updates into terminal edits.
@@ -71,7 +76,25 @@ class TextInputDeltaInterpreter {
       text: delta.oldText,
       composing: _activeComposing(_composing, delta.oldText),
     );
-    return _update(previous, delta.apply(previous));
+    final next = delta.apply(previous);
+
+    // iOS's "." shortcut: a space typed right after "word + space" turns that
+    // space into a period — either as its own replacement (" " → ".", with the
+    // new space inserted by the next delta) or in one step (" " → ". "). The
+    // first space already reached the terminal and the user typed a space,
+    // not a period, so the edit is a plain space (or nothing).
+    final shortcut = _periodShortcut(delta);
+    if (shortcut != null) {
+      _composing = TextRange.empty;
+      return TextInputUpdate(
+        edit: shortcut,
+        value: next,
+        composingText: null,
+        answersKey: !shortcut.isEmpty,
+      );
+    }
+
+    return _update(previous, next);
   }
 
   /// Interprets a whole-value update ([TextInputClient.updateEditingValue])
@@ -102,6 +125,21 @@ class TextInputDeltaInterpreter {
       value: next,
       composingText: composing.isCollapsed ? null : composing.textInside(next.text),
     );
+  }
+
+  static TerminalTextEdit? _periodShortcut(TextEditingDelta delta) {
+    if (delta is! TextEditingDeltaReplacement ||
+        delta.textReplaced != ' ' ||
+        _activeComposing(delta.composing, delta.oldText) != TextRange.empty ||
+        !delta.selection.isCollapsed) {
+      return null;
+    }
+    final cursor = delta.selection.baseOffset;
+    return switch (delta.replacementText) {
+      '.' when cursor == delta.replacedRange.start + 1 => const TerminalTextEdit(),
+      '. ' when cursor == delta.replacedRange.start + 2 => const TerminalTextEdit(text: ' '),
+      _ => null,
+    };
   }
 
   /// The committed part of [text] as code points (so edits never split a
