@@ -69,11 +69,27 @@ abstract class TerminalSurface {
 
   void paste(String text);
 
+  /// A mouse [button] went [buttonState] at [position]. Returns whether the
+  /// terminal consumed the event (the application tracks the mouse).
   bool mouseInput(
     TerminalMouseButton button,
     TerminalMouseButtonState buttonState,
-    CellOffset position,
-  );
+    CellOffset position, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  });
+
+  /// A mouse pointer moved to [position], dragging with [button] held, or
+  /// hovering when [button] is null. Returns whether the terminal consumed
+  /// the event.
+  bool mouseMotion(
+    TerminalMouseButton? button,
+    CellOffset position, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  });
 
   void addListener(void Function() listener);
 

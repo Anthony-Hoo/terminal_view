@@ -399,8 +399,11 @@ class Terminal with Observable
   bool mouseInput(
     TerminalMouseButton button,
     TerminalMouseButtonState buttonState,
-    CellOffset position,
-  ) {
+    CellOffset position, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  }) {
     final output = mouseHandler?.call(TerminalMouseEvent(
       button: button,
       buttonState: buttonState,
@@ -412,6 +415,18 @@ class Terminal with Observable
       onOutput?.call(output);
       return true;
     }
+    return false;
+  }
+
+  /// Motion reports are not implemented by [mouseHandler]; never consumed.
+  @override
+  bool mouseMotion(
+    TerminalMouseButton? button,
+    CellOffset position, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  }) {
     return false;
   }
 
