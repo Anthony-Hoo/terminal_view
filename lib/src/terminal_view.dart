@@ -461,6 +461,15 @@ class TerminalViewState extends State<TerminalView> {
       return;
     }
 
+    // Several lines arriving at once come from a paste (the keyboard's paste
+    // button, Cmd+V, drag and drop), not from typing: hand them over as a
+    // paste so the terminal can bracket them instead of running each line.
+    if (text.length > 1 && (text.contains('\n') || text.contains('\r'))) {
+      widget.terminal.paste(text);
+      _scrollToBottom();
+      return;
+    }
+
     final key = charToTerminalKey(text.trim());
 
     // On mobile platforms there is no guarantee that virtual keyboard will
