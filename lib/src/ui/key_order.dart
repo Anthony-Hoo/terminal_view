@@ -11,7 +11,10 @@ import 'package:flutter/foundation.dart';
 /// otherwise overtake that text: typing `ls` and Return quickly could run `l`
 /// and leave `s` on the next line. Such a key is held until the platform has
 /// answered every text key typed before it — not the ones typed after it — or
-/// until [timeout] passes for keys it never answers.
+/// until the platform stops answering for [timeout] (keys it never answers,
+/// such as dead keys). The timeout counts from the last answer, not from the
+/// last key: a fast burst of typing keeps making progress for longer than
+/// [timeout] and must not release the held keys early.
 class HardwareKeyOrder {
   HardwareKeyOrder({this.timeout = const Duration(milliseconds: 150)});
 
@@ -45,6 +48,9 @@ class HardwareKeyOrder {
     if (_answered >= _dispatched) {
       _answered = _dispatched = 0;
       if (_held.isEmpty) _cancelTimer();
+    } else {
+      // Still answering typed text: give the rest another [timeout].
+      _restartTimer();
     }
   }
 

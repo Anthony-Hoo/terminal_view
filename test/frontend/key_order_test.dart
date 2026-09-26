@@ -2,7 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/src/ui/key_order.dart';
 
 void main() {
-  testWidgets('keys run immediately when no typed text is in flight', (tester) async {
+  testWidgets('keys run immediately when no typed text is in flight',
+      (tester) async {
     final order = HardwareKeyOrder();
     final log = <String>[];
     order.run(() => log.add('enter'));
@@ -16,7 +17,8 @@ void main() {
 
     order.textKeyDispatched(); // "l" left to the text input
     order.textKeyDispatched(); // "s"
-    order.run(() => log.add('enter')); // Return pressed before the text came back
+    order.run(
+        () => log.add('enter')); // Return pressed before the text came back
     expect(log, isEmpty);
 
     log.add('l');
@@ -62,7 +64,9 @@ void main() {
     order.dispose();
   });
 
-  testWidgets('held keys are released after the timeout if the text never comes', (tester) async {
+  testWidgets(
+      'held keys are released after the timeout if the text never comes',
+      (tester) async {
     final order = HardwareKeyOrder(timeout: const Duration(milliseconds: 150));
     final log = <String>[];
 
@@ -73,6 +77,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(log, ['arrow_up']);
     expect(order.isBusy, isFalse);
+    order.dispose();
+  });
+
+  testWidgets(
+      'a burst of typing that takes longer than the timeout keeps its order',
+      (tester) async {
+    final order = HardwareKeyOrder(timeout: const Duration(milliseconds: 150));
+    final log = <String>[];
+
+    for (var i = 0; i < 12; i++) {
+      order
+          .textKeyDispatched(); // twelve keys typed at once, e.g. by automation
+    }
+    order.run(() => log.add('enter'));
+    // The platform answers one key every 40 ms: 480 ms in total.
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(log, isNot(contains('enter')),
+          reason: 'key ${i + 1} not answered yet');
+      log.add('t$i');
+      order.textInputUpdated();
+    }
+    expect(log.last, 'enter');
+    expect(log.length, 13);
     order.dispose();
   });
 }
