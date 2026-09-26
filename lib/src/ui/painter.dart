@@ -315,7 +315,11 @@ class TerminalPainter {
         continue;
       }
 
-      if (charCode >= _kBatchableMin && charCode < _kBatchableEnd) {
+      // A cell carrying combining marks (e + U+0301) is drawn on its own below:
+      // the batched run only holds one code point per cell and would drop them.
+      if (charCode >= _kBatchableMin &&
+          charCode < _kBatchableEnd &&
+          line.getCombined(i) == null) {
         final foreground = line.getForeground(i);
         final flags = line.getAttributes(i);
         final background = line.getBackground(i);
@@ -327,6 +331,7 @@ class TerminalPainter {
         while (j < length) {
           final code = line.getContent(j) & CellContent.codepointMask;
           if (code < _kBatchableMin || code >= _kBatchableEnd) break;
+          if (line.getCombined(j) != null) break;
           if (line.getForeground(j) != foreground) break;
           if (line.getAttributes(j) != flags) break;
           if (inverse && line.getBackground(j) != background) break;
