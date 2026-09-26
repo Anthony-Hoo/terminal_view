@@ -210,7 +210,15 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   var _stickToBottom = true;
 
   void _onScroll() {
-    _stickToBottom = _scrollOffset >= _maxScrollExtent;
+    // Only the user takes the view away from the bottom. Offset changes nobody
+    // asked for - the spring back after the content shrank (clear), a
+    // correction for new dimensions - may bring it back but never detach it:
+    // a spring animation still aiming at the old bottom while output keeps
+    // growing would otherwise leave the view stuck somewhere in the scrollback.
+    final atBottom = _scrollOffset >= _maxScrollExtent;
+    if (atBottom || _offset.userScrollDirection != ScrollDirection.idle) {
+      _stickToBottom = atBottom;
+    }
     markNeedsLayout();
     _notifyEditableRect();
   }
@@ -419,7 +427,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   /// 最后一个），把它规范成引擎要的「末端排他」端点再上报。越过对端时
   /// 谁左谁右由引擎 `ordered()` 规范化，这里不用管。
   void selectInclusiveRange(CellOffset first, CellOffset last) {
-    final begin = first.isAfter(last) ? CellOffset(first.x + 1, first.y) : first;
+    final begin =
+        first.isAfter(last) ? CellOffset(first.x + 1, first.y) : first;
     final end = first.isAfter(last) ? last : CellOffset(last.x + 1, last.y);
     _controller.requestSelection(begin, end);
   }
